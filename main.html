@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>ESP32 Web OTA</title>
+<style>
+  body{font-family:Arial,Helvetica,sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222}
+  h1{font-size:1.4rem}
+  .card{padding:16px;border-radius:8px;border:1px solid #ddd;box-shadow:0 6px 18px rgba(0,0,0,0.03)}
+  input[type=file]{display:block;margin:10px 0}
+  button{padding:10px 16px;border-radius:6px;border:0;background:#007bff;color:#fff;cursor:pointer}
+  progress{width:100%;height:18px}
+  pre{background:#f7f7f7;padding:8px;border-radius:6px;overflow:auto}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>ESP32 — Web OTA Updater</h1>
+    <p>Select a <code>.bin</code> firmware file and click <strong>Upload</strong>. The board will flash it and reboot.</p>
+
+    <label for="file">Firmware (.bin):</label>
+    <input id="file" type="file" accept=".bin" />
+
+    <label for="password">Password (optional):</label>
+    <input id="password" type="password" placeholder="leave blank if none" />
+
+    <div style="margin:10px 0">
+      <button id="btn">Upload</button>
+    </div>
+
+    <div>
+      <progress id="progress" value="0" max="100" style="display:none"></progress>
+      <div id="status" style="margin-top:8px"></div>
+    </div>
+
+    <h4>Log</h4>
+    <pre id="log">Ready.</pre>
+  </div>
+
+<script>
+const btn = document.getElementById('btn');
+const fileInput = document.getElementById('file');
+const progressEl = document.getElementById('progress');
+const log = document.getElementById('log');
+const status = document.getElementById('status');
+const passwordInput = document.getElementById('password');
+
+function appendLog(s){
+  log.textContent += '\n' + s;
+  log.scrollTop = log.scrollHeight;
+}
+
+btn.addEventListener('click', () => {
+  const file = fileInput.files[0];
+  if(!file){
+    alert('Please choose a .bin file');
+    return;
+  }
+
+  const pw = passwordInput.value;
+  const form = new FormData();
+  form.append('file', file);
+  if(pw) form.append('pwd', pw);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/update', true);
+
+  xhr.upload.onprogress = (e) => {
+    if(e.lengthComputable){
+      const pct = Math.round(e.loaded / e.total * 100);
+      progressEl.style.display = 'block';
+      progressEl.value = pct;
+      status.textContent = 'Uploading: ' + pct + '%';
+    }
+  };
+
+  xhr.onload = () => {
+    if(xhr.status === 200 || xhr.status === 204){
+      appendLog('Upload complete. Server response: ' + xhr.responseText);
+      status.textContent = 'Finished. ESP should reboot if update was successful.';
+    } else {
+      appendLog('Upload failed (HTTP ' + xhr.status + '): ' + xhr.responseText);
+      status.textContent = 'Upload failed!';
+    }
+  };
+
+  xhr.onerror = () => {
+    appendLog('Upload error.');
+    status.textContent = 'Upload error!';
+  };
+
+  appendLog('Starting upload: ' + file.name + ' ('+file.size+' bytes)');
+  xhr.send(form);
+});
+</script>
+</body>
+</html>
